@@ -97,9 +97,10 @@ export interface RegisterPhoneNumberArgs {
    * 6-digit PIN the user set in Meta WhatsApp Manager →
    * Two-step verification. If 2FA is not enabled on the number,
    * Meta rejects /register with a clear error and the user is
-   * pointed at the right setting in the UI.
+   * pointed at the right setting in the UI. When two-step verification
+   * is disabled on the number, omit the PIN entirely.
    */
-  pin: string
+  pin?: string
 }
 
 export interface RegisterPhoneNumberResult {
@@ -131,7 +132,7 @@ export async function registerPhoneNumber(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    body: JSON.stringify({ messaging_product: 'whatsapp', ...(pin ? { pin } : {}) }),
   })
 
   if (response.ok) {

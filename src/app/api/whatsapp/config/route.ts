@@ -298,34 +298,31 @@ export async function POST(request: Request) {
 
     const needsRegistration = !sameNumber || (typeof pin === 'string' && pin.length > 0)
     if (needsRegistration) {
-      if (!pin) {
-        // No PIN provided. Meta TEST numbers (Developer Console) are
-        // pre-registered by Meta and expose no two-step verification
-        // PIN to set, so requiring one made them impossible to connect
-        // (issue #242). The /register + PIN step only matters for
-        // production numbers under a shared WABA (issue #136), so treat
-        // it as best-effort: skip it, save the (already Meta-verified)
-        // credentials as connected, and leave registered_at null. The
-        // UI surfaces a separate "Not registered" banner with a path to
-        // add a PIN later for users who do need inbound webhook routing.
-        registrationSkipped = true
-      } else {
-        try {
-          await registerPhoneNumber({
-            phoneNumberId: phone_number_id,
-            accessToken: access_token,
-            pin,
-          })
-          registeredAt = new Date().toISOString()
-        } catch (err) {
-          registrationError =
-            err instanceof Error ? err.message : 'Unknown Meta API error'
+      try {
+        await registerPhoneNumber({
+          phoneNumberId: phone_number_id,
+          accessToken: access_token,
+          ...(pin ? { pin } : {}),
+        })
+        registeredAt = new Date().toISOString()
+      } catch (err) {
+        const errMessage =
+          err instanceof Error ? err.message : 'Unknown Meta API error'
+        // If registration fails without a PIN, it likely needs a PIN.
+        // Skip gracefully so credentials are still saved — the UI
+        // surfaces the "Not registered" banner with a path to add a
+        // PIN later.
+        if (!pin) {
+          registrationSkipped = true
+          console.warn('Phone number /register failed without PIN (non-fatal):', errMessage)
+        } else {
+          registrationError = errMessage
           console.error('Phone number /register failed:', registrationError)
-          // We deliberately fall through and still save the row so the
-          // user can retry without re-entering everything. The UI
-          // surfaces `last_registration_error` so they see WHY it's
-          // not actually live yet.
         }
+        // We deliberately fall through and still save the row so the
+        // user can retry without re-entering everything. The UI
+        // surfaces `last_registration_error` so they see WHY it's
+        // not actually live yet.
       }
     }
 
